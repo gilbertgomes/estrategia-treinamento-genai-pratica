@@ -19,6 +19,33 @@ use Illuminate\Support\Str;
 
 class ReservaController extends Controller
 {
+    public function listaDadosReserva()////// gera dados para o grid da APP /////
+    {
+
+        $reserva = DB::select("
+                                select
+                                    id,
+                                    to_char(res_data, 'DD/MM/YYYY') as data,
+                                    res_data_reserva as datareserva,
+                                    res_hora_reserva as horareserva,
+                                    res_nome_solicitante as solicitante,
+                                    res_setor as setor,
+                                    res_empresa as empresa,
+                                    res_situacao as situacao,
+                                    uuid
+                                from api_reserva_sala
+                                where res_nome_solicitante <> ''
+                                and   res_nome_solicitante is not null
+                                order by res_nome_solicitante
+                               ");
+
+        if(!$reserva){
+            return response()->json(['Erro de carga de dados'],404);
+        }else{
+            return  response()->json($reserva,Response::HTTP_OK);
+        }
+    }
+
     public function insertReservaSala(Request $request){// gera o insert na talbela reserva
 
         $input = $request->all();//recebe o request
