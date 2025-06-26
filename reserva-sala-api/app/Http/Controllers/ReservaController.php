@@ -51,7 +51,7 @@ class ReservaController extends Controller
         $input = $request->all();//recebe o request
         $data  = Carbon::now('America/Manaus');
 
-        $data          = trim($input['data']);
+        $datareserva   = Carbon::createFromFormat('d-m-Y', Carbon::parse($input['data'])->format('d-m-Y'));
         $hora          = trim($input['hora']);
         $solicitante   = trim($input['solicitante']);
         $setor         = trim($input['setor']);
@@ -74,7 +74,7 @@ class ReservaController extends Controller
 
                 $reserva = new apiUsuario([
 
-                    'res_data_reserva'       => $data,
+                    'res_data_reserva'       => $datareserva,
                     'res_hora_reserva'       => $hora,
                     'res_nome_soilcitante'   => $solicitante,
                     'res_setor'              => $setor,
