@@ -22,6 +22,7 @@ class ReservaController extends Controller
     public function listaDadosReserva()////// gera dados para o grid da APP /////
     {
 
+        $situacao = 'reservada';
         $reserva = DB::select("
                                 select
                                     id,
@@ -33,10 +34,9 @@ class ReservaController extends Controller
                                     res_empresa as empresa,
                                     res_situacao as situacao,
                                     uuid
-                                from api_reserva_sala
-                                where res_nome_solicitante <> ''
-                                and   res_nome_solicitante is not null
-                                order by res_nome_solicitante
+                                from reserva_sala
+                                where res_situacao = '".$situacao."'
+                                order by res_situacao
                                ");
 
         if(!$reserva){
@@ -46,66 +46,127 @@ class ReservaController extends Controller
         }
     }
 
-    public function insertReservaSala(Request $request){// gera o insert na talbela reserva
-
-        $input = $request->all();//recebe o request
-        $data  = Carbon::now('America/Manaus');// input api
-
-        //input do usuario
-        $datareserva   = Carbon::parse($input['datareserva'])->format('d-m-Y');
-        $hora          = trim($input['hora']);
-        $solicitante   = trim($input['solicitante']);
-        $setor         = trim($input['setor']);
-        $empresa       = trim($input['empresa']);
-        $situacao      = trim($input['situacao']);
-        $uiid          = (string)Str::uuid();
-
-        $validator = Validator::make($input, [ // valida os tipos
-            "solicitante"  => "required|string|max:130",
-            "setor"        => "required|string|max:30",
+    public function inserirReserva(Request $request)
+    {
+        $input = $request->only(['datareserva', 'hora', 'solicitante', 'setor', 'empresa', 'situacao']);
+        $datasitema = Carbon::now('America/Manaus');// input api
+        $validator  = Validator::make($request->all(), [
+            'datareserva' => 'required|date_format:d-m-Y',
+            'hora'        => 'required|string|max:5',
+            'solicitante' => 'required|string|max:130',
+            'setor'       => 'required|string|max:30',
+            'empresa'     => 'required|string|max:50',
+            'situacao'    => 'required|string|max:20',
         ]);
 
-        $validator->fails();
+        if ($validator->fails()) {
+            return response()->json(['erro' => $validator->errors()], 422);
+        }
 
-        if($validator){ //valida
+        try {
 
-            DB::beginTransaction(); // inicia a transação
+            DB::beginTransaction();
 
-            try {
+            $reserva = new Reserva();
+            $reserva->res_data             = $datasitema;
+            $reserva->res_data_reserva     = Carbon::createFromFormat('d-m-Y', $input['datareserva']);
+            $reserva->res_hora_reserva     = $input['hora'];
+            $reserva->res_nome_solicitante = $input['solicitante'];
+            $reserva->res_setor            = $input['setor'];
+            $reserva->res_empresa          = $input['empresa'];
+            $reserva->res_situacao         = $input['situacao'];
+            $reserva->uuid                 = (string) Str::uuid();
+            $reserva->save();
 
-                $reserva = new apiUsuario([
+            DB::commit();
 
-                    'res_data'               => $data,
-                    'res_data_reserva'       => $data,
-                    'res_hora_reserva'       => $hora,
-                    'res_nome_soilcitante'   => $solicitante,
-                    'res_setor'              => $setor,
-                    'res_empresa'            => $empresa,
-                    'res_situacao'           => $situacao,
-                    'uuid'                   => $uiid,
+            return response()->json($reserva, 201);
+        } catch (\Exception $e) {
 
-                ]);
-                $reserva->save();
+            DB::rollback();
 
-                DB::commit();// comita a transação
-
-                return response($reserva->jsonSerialize(), Response::HTTP_CREATED);
-
-            } catch (\Exception $e) {// caso haja erro retrona o estado
-
-                DB::rollback();
-
-                $json_str = '{"reserva":"'.'0'.'", "erro": "'.'Erro ou não foi possivel completar o processo de insert'.'", "valor":"'.'0'.'"}';
-                $obj      = json_decode($json_str);
-                return response()->json($e, Response::HTTP_CREATED);
-            }
-
-        } else { // caso os tipos não sejam corretos
-
-            $json_str = '{"reserva":"'.'0'.'", "erro": "'.'Erro formato dos dados estão incorretos'.'", "valor":"'.'0'.'"}';
-            $obj      = json_decode($json_str);
-            return response()->json($obj, Response::HTTP_CREATED);
-
+            return response()->json(['erro' => 'Erro ao inserir reserva', 'detalhe' => $e->getMessage()], 500);
         }
     }
+
+    public function alterarReserva(Request $request)
+    {
+        $input = $request->only(['id', 'datareserva', 'hora', 'solicitante', 'setor', 'empresa', 'situacao']);
+
+        $validator = Validator::make($input, [
+            'id'          => 'required|integer|exists:reserva_sala,id',
+            'datareserva' => 'required|date_format:d-m-Y',
+            'hora'        => 'required|string|max:5',
+            'solicitante' => 'required|string|max:130',
+            'setor'       => 'required|string|max:30',
+            'empresa'     => 'required|string|max:50',
+            'situacao'    => 'required|string|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['erro' => $validator->errors()], 422);
+        }
+
+        try {
+            $reserva = Reserva::find($input['id']);
+            if (!$reserva) {
+                return response()->json(['erro' => 'Reserva não encontrada'], 404);
+            }
+
+            DB::beginTransaction();
+
+            $reserva->res_data_reserva     = Carbon::createFromFormat('d-m-Y', $input['datareserva']);
+            $reserva->res_hora_reserva     = trim($input['hora']);
+            $reserva->res_nome_solicitante = trim($input['solicitante']);
+            $reserva->res_setor            = trim($input['setor']);
+            $reserva->res_empresa          = trim($input['empresa']);
+            $reserva->res_situacao         = trim($input['situacao']);
+            $reserva->save();
+
+            DB::commit();
+
+            return response()->json(['mensagem' => 'Reserva atualizada com sucesso'], Response::HTTP_OK);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['erro' => 'Erro ao atualizar reserva', 'detalhe' => $e->getMessage()], 500);
+        }
+    }
+
+    public function excluirReserva(Request $request)
+    {
+        $input = $request->only(['id']);
+        $data  = Carbon::now('America/Manaus');
+
+        // Validação do ID
+        $validator = Validator::make($input, [
+            'id' => 'required|integer|exists:reserva_sala,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['erro' => $validator->errors()], 422);
+        }
+
+        try {
+            $reserva = Reserva::find($input['id']);
+            if (!$reserva) {
+                return response()->json(['erro' => 'Reserva não encontrada'], 404);
+            }
+
+            DB::beginTransaction();
+
+            $reserva->res_data      = $data;
+            $reserva->res_situacao  = 'EXCLUIDO';
+            $reserva->save();
+
+            DB::commit();
+
+            return response()->json(['mensagem' => 'Reserva excluída com sucesso'], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json(['erro' => 'Erro ao excluir reserva', 'detalhe' => $e->getMessage()], 500);
+        }
+    }
+
+
 }

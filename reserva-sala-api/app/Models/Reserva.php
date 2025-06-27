@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Reserva extends Model
 {
-    public $table = 'api_reserva_sala';
+    public $table = 'reserva_sala';
 
     public $timestamps = true;
 
